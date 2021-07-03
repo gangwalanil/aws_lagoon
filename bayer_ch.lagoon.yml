@@ -1,0 +1,55 @@
+docker-compose-yaml: docker-compose.yml
+
+environment_variables:
+  git_sha: 'true'
+
+tasks:
+  pre-rollout:
+    - run:
+        name: drush sql-dump
+        command: mkdir -p /app/web/sites/default/files/private/ && drush sql-dump --ordered-dump --gzip --result-file=/app/web/sites/default/files/private/pre-deploy-dump.sql.gz
+        service: cli
+  post-rollout:
+    - run:
+        name: drush cim
+        command: drush -y cim
+        service: cli
+        shell: bash
+    - run:
+        name: drush cr
+        command: drush -y cr
+        service: cli
+
+routes:
+  autogenerate:
+    insecure: Redirect
+
+environments:
+  main:
+    monitoring_urls:
+      - "https://www.example.com"
+      - "https://www.example.com/special_page"
+    routes:
+      - nginx:
+        - helloworld.com
+        - "www.helloworld.com":
+            tls-acme: 'true'
+            insecure: Redirect
+            hsts: max-age=31536000
+    types:
+      mariadb: mariadb
+    templates:
+      mariadb: mariadb.main.deployment.yml
+    rollouts:
+      mariadb: statefulset
+    cronjobs:
+     - name: drush cron
+       schedule: "H * * * *" # This will run the cron once per hour.
+       command: drush cron
+       service: cli
+  staging:
+    cronjobs:
+     - name: drush cron
+       schedule: "H * * * *" # This will run the cron once per hour.
+       command: drush cron
+       service: cli
